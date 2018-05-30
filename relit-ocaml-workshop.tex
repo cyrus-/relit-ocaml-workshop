@@ -41,21 +41,38 @@
 \usepackage{wrapfig}
 
 
-\usepackage{listings}%
-\lstloadlanguages{ML}
+%% Listings
+\definecolor{mygray}{rgb}{0.75,0.75,0.75}
+\usepackage{listings}
 \lstset{tabsize=2, 
-basicstyle=\footnotesize\ttfamily, 
-% keywordstyle=\sffamily,
-commentstyle=\itshape\ttfamily\color{gray}, 
+basicstyle=\ttfamily\fontsize{8pt}{1em}\selectfont, 
+commentstyle=\itshape\ttfamily\color{gray},
 stringstyle=\ttfamily\color{purple},
-mathescape=false,escapechar=\#,
-numbers=left, numberstyle=\scriptsize\color{gray}\ttfamily, language=ML, showspaces=false,showstringspaces=false,xleftmargin=15pt, 
-morekeywords={string, float, int},
-classoffset=0,belowskip=\smallskipamount, aboveskip=\smallskipamount,
-moredelim=**[is][\color{red}]{SSTR}{ESTR}
+mathescape=false,escapeinside={(~}{~)},
+numbers=left, numberstyle=\scriptsize\color{mygray}, language=ML,showspaces=false,showstringspaces=false,xleftmargin=0pt, numbersep=-6pt, morekeywords=[1]{try,spliced,tyfam,opfam,let,fn,val,def,casetype,objtype,metadata,of,*,string,lexer,parser,datatype,new,toast,notation,module,switch,where,expansions,require,import,for,ana,syn,opcon,tycon,metasignature,metamodule,metasig,metamod,static,at,by,tycase,mod,macro,match,pattern,in,patterns,expressions,implicit,forall,int,exptsm,pattsm,dependencies},deletekeywords={double,structure,of},classoffset=0, xleftmargin=0pt, 
+aboveskip=3pt,belowskip=2pt,
+moredelim=**[is][\color{red}]{SSTR}{ESTR},
+moredelim=**[is][\color{Periwinkle}]{SHTML}{EHTML},
+moredelim=**[is][\color{purple}]{SCSS}{ECSS},
+moredelim=**[is][\color{brown}]{SSQL}{ESQL},
+moredelim=**[is][\color{orange}]{SCOLOR}{ECOLOR},
+moredelim=**[is][\color{magenta}]{SPCT}{EPCT}, 
+moredelim=**[is][\color{gray}]{SNAT}{ENAT}, 
+moredelim=**[is][\color{Periwinkle}]{SURL}{EURL},
+moredelim=**[is][\color{Sealavender}]{SQT}{EQT},
+moredelim=**[is][\color{Periwinkle}]{SGRM}{EGRM},
+moredelim=**[is][\color{Yellowlavender}]{SID}{EID},
+moredelim=**[is][\color{Sepia}]{SUS}{EUS},
+moredelim=**[is][\color{black}]{SOK}{EOK},
+% deletestring=[d]{"},
 }
+\lstset{morecomment=[n]{/*}{*/}}
+
+\newcommand{\liv}[1]{\lstinline{#1}}
 \newcommand{\li}[1]{\lstinline[basicstyle=\ttfamily\fontsize{9pt}{1em}\selectfont]{#1}}
 \newcommand{\lismall}[1]{\lstinline[basicstyle=\ttfamily\fontsize{9pt}{1em}\selectfont]{#1}}
+\newcommand{\lifootnote}[1]{\lstinline[basicstyle=\ttfamily\fontsize{7pt}{1em}\selectfont]{#1}}
+
 
 %% Joshua Dunfield macros
 \def\OPTIONConf{1}%
@@ -312,12 +329,94 @@ moredelim=**[is][\color{red}]{SSTR}{ESTR}
 \maketitle
 \thispagestyle{empty} % suppresses the footer
 
-\section{Introduction}
+\section{Motivation}
+
+The Reason project (\url{https://reasonml.github.io/}) is achieving significant and growing adoption by focusing on the improving the \emph{syntactic familiarity} of OCaml, from the perspective of the broader developer community, without changing its semantics. The focus of this effort has been on the syntax of the primitive constructs of OCaml. However, another way to increase syntactic familiarity is by introducing new {literal forms} for common user-defined data structures. For example, both OCaml and Reason include literal forms for lists, e.g. \li{[e1, e2, e3]} in Reason, which lay out the list elements in the familiar sequential, punctuation-separated format. By comparison, explicitly applying constructors, e.g. \li{Nil} and \li{Cons}, is both more verbose and less familiar to humans.
+
+The problem is that this general design pattern is not limited to a select few data structures like lists. In fact, there are an  unbounded number of user-defined data structures that could benefit from literal notation. Although Reason does include a few more literal notations than OCaml, e.g. it supports ``JSX literals'' which are based on HTML \cite{JSX}, it would be infeasible for Reason to attempt to build in all possibly-useful literal notations \emph{a priori}. Instead, there is a need for a mechanism that allows ordinary library providers to define new literal notation for their own data structures.
+
+For example, consider the recursive datatype \li{Regex.t}, defined in Fig.~\ref{fig:Regex-module-def}, which encodes simple regular expressions (regexes). Although this encoding is semantically useful, the induced notation is syntactically verbose and unfamiliar. For example, we would construct a regex that matches the strings \li{"A"}, \li{"T"}, \li{"G"} or \li{"C"}, which represent the four bases in DNA, as follows:
+\begin{lstlisting}[numbers=none]
+  module DNA = { 
+    let any_base = Regex.(Or(Str "A", Or(Str "T", Or(Str "G", Or(Str "C")))))
+  }
+\end{lstlisting}
+and from there, we might define a regular expression that matches the DNA sequences recognized by the BisA restriction enzyme --- \li{GC}$X$\li{GC}, where $X$ is any of these four bases --- as follows:
+\begin{lstlisting}[numbers=none]
+  let bisA = Regex.(
+    Seq(Str "G", Seq(Str "C", 
+    Seq(DNA.any_base, 
+    Seq(Str "G", Str "C")))))
+\end{lstlisting}
+
+If we built regex literals into Reason, based on the POSIX standard regular expression notation extended with support for constructing regexes compositionally by splicing in values of type \li{Regex.t}, these examples would be substantially more concise and familiar to programmers:
+\begin{lstlisting}[numbers=none]
+  module DNA = { let any_base = `(A|T|G|C)` };
+  let bisA = `(GC$(DNA.any_base)GC)`
+\end{lstlisting}
+
+However, building regex notation for this particular encoding of regexes is, we argue, rather \emph{ad hoc} --- there are dozens of other examples of notation in programming, mathematics and science that could similarly benefit \cite{cites,from,paper}. 
+
+An alternative is to use a tool like \li{camlp4} or \li{ppx} to introduce this sort of literal notation modularly. There are several problems with these tools, however. Omar et al. \cite{TLMs-paper} details the problems, but to briefly summarize, these systems lack the ability to reason abstractly---without looking at the underlying expansion itself, or the parsing and expansion logic---about responsibility (which extension is uniquely responsible for each form?), typing (what type does a new form have?) and binding (where are variables bound, given that the expansion is not visible?)
+
+To address this problem, Omar et al. \cite{TLMs-paper} introduced \emph{typed literal macros (TLMs)}. An example of a TLM definition for regex notation, named \li{$regex}, is given in Fig.~\ref{fig:regex-tlm-def}. We can apply this TLM  
+
+\begin{figure}[t]
+\begin{subfigure}[t]{0.45\textwidth}
+\vspace{-1px}
+\begin{lstlisting}[mathescape=~]
+  module Regex = {
+    type t = 
+      | Empty
+      | AnyChar 
+      | Str(string)
+      | Seq(t, t) 
+      | Or(t, t) 
+      | Star(t);
+  }
+\end{lstlisting}
+\vspace{-5px}
+\caption{The \li{Regex} module, which defines the recursive datatype \li{Regex.t}.}
+\label{fig:Regex-module-def}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.53\textwidth}
+\vspace{-1px}
+\begin{lstlisting}[mathescape=|]
+  module RegexNotation = {
+    notation $regex at Regex.t {
+      lexer  RegexLexer and 
+      parser RegexParser.start
+      in regex_parser;
+      dependencies = 
+        { module Regex = Regex; }
+    }
+  }
+\end{lstlisting}
+\vspace{-5px}
+\caption{The definition of the \li{$regex} TLM (the lexer and parser is detailed in \cite{TLMs-paper}).}
+\label{fig:regex-tlm-def}
+\end{subfigure}
+
+\begin{subfigure}[t]{\textwidth}
+\vspace{5px}
+\begin{lstlisting}
+  notation $regex = RegexNotation.$regex; /* or open RegexNotation */
+  module DNA = { let any_base = $regex `(SURLA|T|G|CEURL)`; };
+  let bisA = $regex `(SURLGC$(EURLDNA.any_baseSURL)GCEURL)`;
+\end{lstlisting}
+\vspace{-4px}
+\caption{Examples of the \li{$regex} TLM being applied in a bioinformatics application. %In each case, literal body, between backticks, is initially left unparsed according to the language's context-free syntax. %The applied TLM determines a segmentation and expansion during the typed expansion phase, which generalizes the usual typing phase.
+}
+\label{fig:first-tlm-example}
+\end{subfigure}
+\vspace{5px}
+\caption{Case Study (reproduced from \cite{TLMs-paper}): POSIX-style regex literal notation, with support for regex splicing.}
+% \vspace{-6px}
+\label{fig:regex-case-study}
+\end{figure}
 
 Motivation similar to that in the ICFP paper -- but compare more explicitly to how people use ppx to rewrite string literals to support notation, camlp4, and Reason's built in HTMLish notation.
-
-\section{Overview By Example}
-Cite the ICFP paper, give a simple example, list the reasoning principes
 
 \section{Implementation}
 \begin{enumerate}
