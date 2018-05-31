@@ -49,7 +49,7 @@ basicstyle=\ttfamily\fontsize{8pt}{1em}\selectfont,
 commentstyle=\itshape\ttfamily\color{gray},
 stringstyle=\ttfamily\color{purple},
 mathescape=false,escapeinside={(~}{~)},
-numbers=left, numberstyle=\scriptsize\color{mygray}, language=ML,showspaces=false,showstringspaces=false,xleftmargin=0pt, numbersep=-6pt, morekeywords=[1]{try,spliced,tyfam,opfam,let,fn,val,def,casetype,objtype,metadata,of,*,string,lexer,parser,datatype,new,toast,notation,module,switch,where,expansions,require,import,for,ana,syn,opcon,tycon,metasignature,metamodule,metasig,metamod,static,at,by,tycase,mod,macro,match,pattern,in,patterns,expressions,implicit,forall,int,exptsm,pattsm,dependencies},deletekeywords={double,structure,of},classoffset=0, xleftmargin=0pt, 
+numbers=left, numberstyle=\scriptsize\color{mygray}, language=ML,showspaces=false,showstringspaces=false,xleftmargin=0pt, numbersep=-6pt, morekeywords=[1]{try,spliced,tyfam,opfam,let,fn,val,def,casetype,objtype,metadata,of,*,string,lexer,parser,datatype,new,toast,notation,module,switch,where,expansions,require,import,for,ana,syn,opcon,tycon,metasignature,metamodule,metasig,metamod,static,at,by,tycase,mod,macro,match,pattern,in,patterns,expressions,implicit,forall,int,exptsm,pattsm,dependencies},deletekeywords={with,double,structure,of},classoffset=0, xleftmargin=0pt, 
 aboveskip=3pt,belowskip=2pt,
 moredelim=**[is][\color{red}]{SSTR}{ESTR},
 moredelim=**[is][\color{Periwinkle}]{SHTML}{EHTML},
@@ -451,32 +451,26 @@ At this point, the PPX has all the information for a given call site that it nee
 After running the provided parser against the TLM body, we are left with a proto-expansion --- an OCaml parsetree that has unexpanded splices. The next step is a check to make sure these expressions are context independent: the proto-expansions must not refer to variables or modules accessible in the application context. We first check there are no free variables by simply running the typechecker aginst the proto-expansion, with an empty typing environment. (We do add in the dependencies which were explicitely allowed in the \li{notation} definition.) One might think this strategy would work to check modules too, but there is a global list of top-level modules that the typechecker allows, even when typing against an empty environment. So the PPX has an OCaml \li{Parsetree} and it wants to make sure that the free modules it uses (the parsetree can define its own modules internally) are restricted to the supplied dependencies. The solution we came up with is to write this \li{Parsetree} to a file, and run \li{ocamldep -modules} against the file. This gives us exactly a list of free modules, which we check against the dependencies, resulting in a completely context independent proto-expansion.
 
 It is still a proto-expansion since there are splices which the TLM parser could have potentially outputted. It is the PPX's job to parse these splices with the Reason parser and supply the resulting parse trees in a capture-avoiding way.  We have encoded the splices returned from the TLM parser as exceptions, once again. Since we're type checking 
-before this to ensure context independence, the intermediate form must pass the typechecker.
+before this to ensure context independence, the intermediate form must pass the typechecker. An encoded splice that says characters 2 through 4 of the TLM source should be parsed as Reason and should be of type \li{string} looks like:
 
 \begin{lstlisting}
-raise (ignore (2, 4) ; Failure "RelitInternal__Spliced") : string
+  raise (ignore (2, 4) ; Failure "RelitInternal__Spliced") : string
 \end{lstlisting}
 
-finally recurse
+The PPX collects all the splices in a proto-expansion, parses their corresponding Reason sources to get splice parse trees. One might think that these splice parse trees could then each replace their splice in the proto-expression, but that would allow the TLM to introduce bindings into the splices --- the exact opposite of capture avoidance. Instead, we replace each encoded splice with a unique variable name, construct a lambda that takes those variable names, and immediately apply this lambda to each of the splice parse trees in order. This results in a parsetree along these lines:
 
-\begin{enumerate}
-  \item Extending the Reason parser
-  \item Using singleton signatures to encode definitions
-  \item Using exceptions for application + typechecking inside a PPX (but really we only need to signature check but thats not possible). Is it bad?
-  \item Using ocamldep to determine module dependencies
-  \item Awkwardness with packaging the parser
-  \item Speculation: issues with OCaml + Reason support together (use menhir's parameterization?)
-\end{enumerate}
-\section{Discussion}
-Successes:
-\begin{enumerate}
-  \item ocamldep was a straightforward way to do context independence
-  \item can do typechecking and compile-time code execution in a ppx
-\end{enumerate}
+\begin{lstlisting}
+  ((fun a b c -> proto-expansion with variables instead of splices ) a b c)
+\end{lstlisting}
 
-Challenges:
+The last step is to start the entire process over again. Since a spliced expression can itself contain a TLM application, we recurse until there is nothing left to expand.
+
+
+
+
+\subsection{Challenges}
 \begin{enumerate}
-  \item packaging / loading parsers at compile-time is a huge hassle
+  \item packaging / loading parsers at compile-time is a huge hassle --- I think I've covered this.
   \item jbuilder treats ppx differently
   \item ordering of ppx matters
   \item ocamldep can't see into spliced terms -- how to fix?
