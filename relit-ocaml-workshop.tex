@@ -446,6 +446,8 @@ This passes the body of the TLM application on to the next stage of compilation 
 
 This method of finding the module through the typing environment results in a strange paradox: We must typecheck before we've expanded the TLM application, even before we have access to its expected type. This is where the \li{raise} call becomes important. Raising an exception matches against every type, so it will typecheck without an issue before it is expanded fully.
 
+At this point, the PPX has all the information for a given call site that it needs --- the TLM body, the names of the parser and lexer --- so it runs the parser and lexer on the TLM body. As TLMs are macros, albeit specialized ones, they require running code at compile time. Specifically, TLMs involve running the provide parser and lexer, modules that {\it are not available when the PPX itself is compiled}. Our first attempt involved starting an OCaml toplevel within the PPX, \li{#load}-ing the appropriate OCaml object files, and then evaluating a call to the parser. This proved more difficult when the parser and lexer themselves had dependencies. The current implementation instead generates an OCaml file with calls to the parser and lexer, builds it with \li{ocamlfind ocamlc}, and runs the resulting \li{.byte} file to get a marshalled parse tree from standard output. We require that the parser and lexer be in their own OCamlfind package, which is the package specified in the \li{notation} syntax. This ensures that not only are their 
+
 \begin{enumerate}
   \item Extending the Reason parser
   \item Using singleton signatures to encode definitions
