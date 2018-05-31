@@ -49,7 +49,7 @@ basicstyle=\ttfamily\fontsize{8pt}{1em}\selectfont,
 commentstyle=\itshape\ttfamily\color{gray},
 stringstyle=\ttfamily\color{purple},
 mathescape=false,escapeinside={(~}{~)},
-numbers=left, numberstyle=\scriptsize\color{mygray}, language=ML,showspaces=false,showstringspaces=false,xleftmargin=0pt, numbersep=-6pt, morekeywords=[1]{try,spliced,tyfam,opfam,let,fn,val,def,casetype,objtype,metadata,of,*,string,lexer,parser,datatype,new,toast,notation,module,switch,where,expansions,require,import,for,ana,syn,opcon,tycon,metasignature,metamodule,metasig,metamod,static,at,by,tycase,mod,macro,match,pattern,in,patterns,expressions,implicit,forall,int,exptsm,pattsm,dependencies},deletekeywords={with,double,structure,of},classoffset=0, xleftmargin=0pt, 
+numbers=left, numberstyle=\scriptsize\color{mygray}, language=ML,showspaces=false,showstringspaces=false,xleftmargin=0pt, numbersep=-6pt, morekeywords=[1]{try,spliced,tyfam,opfam,let,fn,val,def,casetype,objtype,metadata,of,*,string,lexer,parser,datatype,new,toast,notation,module,switch,where,expansions,require,import,for,ana,syn,opcon,tycon,metasignature,metamodule,metasig,metamod,static,at,by,tycase,mod,macro,match,pattern,package,in,patterns,expressions,implicit,forall,int,exptsm,pattsm,dependencies},deletekeywords={with,double,structure,of},classoffset=0, xleftmargin=0pt, 
 aboveskip=3pt,belowskip=2pt,
 moredelim=**[is][\color{red}]{SSTR}{ESTR},
 moredelim=**[is][\color{Periwinkle}]{SHTML}{EHTML},
@@ -331,29 +331,27 @@ moredelim=**[is][\color{black}]{SOK}{EOK},
 
 \section{Motivation}
 
-The Reason project (\url{https://reasonml.github.io/}) is experiencing growing adoption by focusing on increasing the \emph{syntactic familiarity} of OCaml (from the perspective of the broader developer community) without changing its semantics. The focus of the Reason effort so far has been on the syntax of the primitive constructs of OCaml. However, another way to increase syntactic familiarity is by introducing new {literal forms} for constructing and pattern matching on  common user-defined data structures. For example, both OCaml and Reason include literal forms for lists, e.g. \li{[e1, e2, e3]} in Reason, which lay out the list elements in the familiar sequential, punctuation-separated format. By comparison, explicitly applying constructors, e.g. \li{Nil} and \li{Cons}, is both more verbose and less familiar to human programmers.
+The Reason project (\url{https://reasonml.github.io/}) is experiencing growing adoption by focusing on increasing the \emph{syntactic familiarity} of OCaml (from the perspective of the broader developer community) without changing its semantics. The focus of the Reason effort so far has been on the syntax of the primitive constructs of OCaml. An additional way to increase syntactic familiarity is by introducing new {literal forms} for constructing and pattern matching on  common user-defined data structures. For example, both OCaml and Reason include literal forms for lists, e.g. \li{[e1, e2, e3]}. By comparison, explicit constructors, e.g. \li{Nil} and \li{Cons}, is less concise and less familiar to humans.
 
-The problem is that there are an  unbounded number of other user-defined data structures that could benefit from literal notation. Although Reason does include a few more literal notations than OCaml, e.g. it supports ``JSX literals'' which are based on HTML, it would be infeasible for Reason to attempt to build in all possibly-useful literal notations \emph{a priori}. Instead, there has been a need for a reasonable mechanism that allows ordinary library providers to define new literal notation for their own data structures.
+The problem is that there are an  unbounded number of other user-defined data structures that could benefit from literal notation. Although Reason does include a few more literal notations than OCaml, e.g. it supports ``JSX literals'' which are based on HTML, it would be infeasible for Reason to attempt to build in all possibly-useful literal notations \emph{a priori}. Instead, there has been a need for a reasonable mechanism that allows ordinary library providers to define new literal notation.
 
 For example, consider the recursive datatype \li{Regex.t}, defined in Fig.~\ref{fig:Regex-module-def}, which encodes simple regular expressions (regexes). Although this encoding is semantically useful, the induced notation is syntactically verbose and unfamiliar. For example, we would construct a regex that matches the strings \li{"A"}, \li{"T"}, \li{"G"} or \li{"C"}, which represent the four bases in DNA, as follows:
 \begin{lstlisting}[numbers=none]
-  module DNA = { 
-    let any_base = Regex.(Or(Str "A", Or(Str "T", Or(Str "G", Or(Str "C")))))
-  }
+module DNA = { let any = Regex.(Or(S "A", Or(S "T", Or(S "G", Or(S "C"))))) }
 \end{lstlisting}
-From there, we might define a regular expression that matches the DNA sequences recognized by the BisA restriction enzyme --- \li{GC}$X$\li{GC}, where $X$ is any of these four bases --- as follows:
+From there, we might define a regular expression that matches the DNA sequences recognized by the BisA restriction enzyme---\li{GC}$X$\li{GC}, where $X$ is any of these four bases---as follows:
 \begin{lstlisting}[numbers=none]
-  let bisA = Regex.(Seq(Str "G", Seq(Str "C", 
-                    Seq(DNA.any_base, Seq(Str "G", Str "C")))))
+  let bisA = Regex.(Seq(S "G", Seq(S "C", 
+                    Seq(DNA.any_base, Seq(S "G", S "C")))))
 \end{lstlisting}
 
-These examples would be substantially more concise and familiar to contemporary programmers if we built regex literals into Reason, based on the POSIX standard regular expression notation extended with support for constructing regexes compositionally by splicing in expressions of type \li{Regex.t} delimited by \li{$(} and \li{)}:
+These examples would be more concise and familiar if we built regex literals into Reason, based on the POSIX standard regular expression notation extended with support for constructing regexes compositionally by splicing in expressions of type \li{Regex.t} delimited by \li{$(} and \li{)}:
 \begin{lstlisting}[numbers=none]
   module DNA = { let any_base = `(SURLA|T|G|CEURL)` };
   let bisA = `(SURLGC$(EURLDNA.any_baseSURL)GCEURL)`
 \end{lstlisting}
 \noindent
-However, building regex notation for this particular encoding of regexes is, we argue, rather \emph{ad hoc} because there are dozens of other examples of notation in programming, mathematics and science that could similarly benefit \cite{cites,from,paper}. 
+However, building in regex notation is \emph{ad hoc} because there are dozens of other examples of notation in programming, mathematics and science that could similarly benefit. 
 
 
 \begin{figure}[t]
@@ -364,7 +362,7 @@ However, building regex notation for this particular encoding of regexes is, we 
     type t = 
       | Empty
       | AnyChar 
-      | Str(string)
+      | S(string)
       | Seq(t, t) 
       | Or(t, t) 
       | Star(t);
@@ -380,9 +378,9 @@ However, building regex notation for this particular encoding of regexes is, we 
 \begin{lstlisting}[mathescape=|]
   module RegexNotation = {
     notation $regex at Regex.t {
-      lexer  RegexLexer and 
+      lexer  RegexLexer  
       parser RegexParser.start
-      in regex_parser;
+      in package regex_parser;
       dependencies = 
         { module Regex = Regex; }
     }
@@ -411,45 +409,46 @@ However, building regex notation for this particular encoding of regexes is, we 
 \label{fig:regex-case-study}
 \end{figure}
 
-An existing alternative is to use a tool like \li{camlp4} or \li{ppx} to introduce this sort of literal notation modularly. There are several problems with these tools, however. Omar and Aldrich \cite{TLMs-paper} detail these problems, but to briefly summarize, these systems do not give client programmers the ability to reason abstractly---without looking at the underlying expansion itself, or the parsing and expansion logic---about responsibility (which extension is uniquely responsible for each form?), typing (what type does a new form have?) and binding (where are variables bound, given that the expansion of a literal form might itself bind variables?) These issues are most salient when the programmer encounters an unfamiliar literal form. 
+An existing alternative is to use a tool like \li{camlp4} or \li{ppx} to introduce this sort of literal notation modularly. However, there are several problems with these tools. To address these problems, \citet{TLMs-paper} introduced \emph{typed literal macros (TLMs)}, which, unlike these prior tools, allow programmers to reason abstractly---without looking at the underlying expansion or the parser---about (1) which extension is uniquely responsible for each form, (2) the type of each literal, and each spliced expression within the literal, and (3) where variables are bound (i.e. TLMs are hygienic).
 
-To address this problem, Omar and Aldrich \cite{TLMs-paper} introduced \emph{typed literal macros (TLMs)}. An example of a TLM definition for regex notation, named \li{$regex}, is given in Fig.~\ref{fig:regex-tlm-def}. We apply this TLM to express 
-the example just given in Fig.~\ref{fig:first-tlm-example}. Each TLM is responsible for parsing the applied literal body to generate an expansion, i.e. an OCaml parse tree. The system validates each generated expansion to provide the strong abstract reasoning principles just mentioned. These reasoning principles are examined in formal detail in the paper by Omar and Aldrich \cite{TLMs-paper}, which will be presented by Cyrus at ICFP. The purpose of the proposed talk, which will be given by Charles, will be to provide a complementary ``deep dive'' that describes how we integrated this mechanism for Reason without modifying the OCaml compiler itself, by making creative use of several existing components of the OCaml system, including the \li{ppx} preprocessor system, the \li{compiler-libs} package, \li{ocamldep} and the module system. These implementation aspects are detailed only superficially in the ICFP paper.
+An example of a TLM definition for regex notation, named \li{$regex}, is given in Fig.~\ref{fig:regex-tlm-def}. We apply the \li{$regex} TLM to two different literal forms express 
+the example just given in Fig.~\ref{fig:first-tlm-example}. Each TLM is responsible for parsing the literal body to which it is applied to generate an expansion, i.e. an OCaml parse tree. The system validates each generated expansion to provide the strong abstract reasoning principles just mentioned. These reasoning principles are examined in formal detail in the paper by \citet{TLMs-paper}, which will be presented by Cyrus at ICFP. The purpose of the proposed talk, which will be given by Charles, will be to provide a complementary ``deep dive'' that describes how we integrated this mechanism for Reason without modifying the OCaml compiler itself, by making creative use of several existing components of the OCaml system, including the \li{ppx} preprocessor system, the \li{compiler-libs} package, \li{ocamlfind}, \li{ocamldep} and the module system. These implementation aspects are detailed only superficially in the ICFP paper.
 
 
 \section{Implementation Overview}
 
-We have modified the Reason parser to support the syntax for defining a new notation, seen in Fig.~\ref{fig:regex-tlm-def}, and the TLM quotation syntax, either \li{Path.To.$regex `(body)`} or \li{`(body)`} (which is used for implicit TLM application, see .
+We have modified the Reason parser to support the syntax for defining a new notation, seen in Fig.~\ref{fig:regex-tlm-def}, and the TLM quotation syntax, either \li{Path.To.$regex `(body)`} or \li{`(body)`} (which is used for implicit TLM application, see \cite{TLMs-paper}). The literal body can have nested matching occurrences of \li{`(} and \li{)`} (much like comments in Reason/OCaml).
 
-We parse the \li{$regex} notation in Fig.~\ref{fig:regex-tlm-def} into an OCaml \li{Parsetree} equivalent to the following OCaml module:
+The \li{$regex} TLM definition in Fig.~\ref{fig:regex-tlm-def} desugars to the following OCaml module:
 \begin{lstlisting}
-  module RelitInternalDefn_regex = struct
-    type t = Regex.t
-    module Lexer_RegexParser = struct end
-    module Parser_RegexLexer = struct end
-    module Package_regex_parser = struct end
-    module Nonterminal_literal = struct end
-    module Dependencies = struct
-      module Regex = Regex
+    module RelitInternalDefn_regex = struct
+      type t = Regex.t (* corresponds to "at Regex.t" *)
+      module Lexer_RegexLexer = struct end (* ... "lexer RegexLexer" *)
+      module Parser_RegexParser = struct end (* ... "parser RegexParser" *)
+      module Nonterminal_start = struct end (* ... ".start" *)
+      module Package_regex_parser = struct end (* ... "in package regex_parser" *)
+      module Dependencies = struct (* ... "dependencies = {" *)
+        module Regex = Regex
+      end
+      exception Apply of string * string (* used internally, see below *)
     end
-    exception Call of string * string
-  end
 \end{lstlisting}
 
-The name of the TLM, i.e the \li{regex} in \li{$regex}, is stored as the module name, with an internal prefix. This enables TLMs to be aliased, opened, and qualified by their parent modules. A TLM application is represented as a call to \li{raise} within the OCaml \li{Parsetree} generated by the Reason parser:
+The name of the TLM is stored as the module name, with the internal prefix \li{RelitInternalDefn_}. By encoding TLM definitions as modules, TLMs can packaged inside other modules (\li{RegexNotation} in Fig.~\ref{fig:regex-tlm-def}) and it is straightforward to support TLM aliases. By encoding the relevant information from the TLM definition in module names, e.g. \li{Lexer_RegexLexer} and \li{Nonterminal_start}, we ensure that the corresponding signature is a \emph{singleton signature}, i.e. it uniquely identifies the TLM definition, so TLM definitions can also be included in module signatures, exported from functors and packaged.
+
+A TLM application is represented as a call to \li{raise} within the OCaml parse tree generated by the Reason parser, annotated with \li{@relit}:
 \begin{lstlisting}[numbers=none]
-  raise (RelitInternalDefn_regex.Call
-          ("You're using relit syntax without the relit ppx!", "a|b") [@relit])
+  raise (RelitInternalDefn_regex.Apply
+          ("You're using relit syntax without the relit ppx!", "A|T|G|C") [@relit])
 \end{lstlisting}
 
+In order to expand the literal body, here \li{"A|T|G|C"}, we must be able to resolve the signature of the \li{RelitInternalDefn_regex} module. In other words, we must be able to typecheck before expanding literal bodies. This is why we encode a TLM application as raising an exception. Raised exceptions match against any type, so it will typecheck without an issue before it is expanded fully. Note that this occasionally results in a less specific type error message than the user would see had they manually expanded the TLM application.
 
-This passes the body of the TLM application on to the next stage of compilation --- the Relit PPX. It also provides a meaningful error message to any users of a Relit notation that forget to use the Relit PPX. The Relit PPX starts by running the OCaml typechecker. Then it maps over the resulting \li{Typedtree}, searching for all TLM applications. Every node of this typed tree has a typing environment which contains the modules, variables, record fields in scope, and their types or signatures. So to resolve the TLM definition for a given application, the PPX looks up the prefixed module name (in this case \li{RelitInternalDefn_regex}) in the application's typing environment to find its signuatere. This is why we encode the data for the lexer, the parser, their package, and the starting nonterminal as module names; it can be read from the signature of the notation's module without having access to the module's definition itself.
+By encoding TLM definitions as modules, and TLM applications as exceptions, we can implement TLMs using the OCaml PPX system, rather than by extending the OCaml compiler itself. 
 
-This method of finding the module through the typing environment results in a strange paradox: We must typecheck before we've expanded the TLM application, even before we have access to its expected type. This is where the \li{raise} call becomes important. Raising an exception matches against every type, so it will typecheck without an issue before it is expanded fully.
+Once the Relit PPX has all the information for a given TLM application site that it needs, it must run the lexer and parser on the literal body. TLMs are macros, so they require loading and running the parser at compile time. Our first attempt involved starting an OCaml toplevel within the PPX, \li{#load}-ing the appropriate OCaml object files, and then evaluating a call to the parser. This proved more difficult when the parser and lexer themselves had dependencies. The current implementation instead generates an OCaml file with calls to the parser and lexer, builds it with \li{ocamlfind ocamlc}, and runs the resulting \li{.byte} file to get a marshalled parse tree from standard output. We require that the parser and lexer be in their own \li{ocamlfind} package, which is the package specified in the \li{notation} syntax (here, \li{regex_parser}). This ensures that the parser and lexer and all their dependencies are loaded.
 
-At this point, the PPX has all the information for a given call site that it needs --- the TLM body, the names of the parser and lexer --- so it runs the parser and lexer on the TLM body. As TLMs are macros, albeit specialized ones, they require running code at compile time. Specifically, TLMs involve running the provide parser and lexer, modules that {\it are not available when the PPX itself is compiled}. Our first attempt involved starting an OCaml toplevel within the PPX, \li{#load}-ing the appropriate OCaml object files, and then evaluating a call to the parser. This proved more difficult when the parser and lexer themselves had dependencies. The current implementation instead generates an OCaml file with calls to the parser and lexer, builds it with \li{ocamlfind ocamlc}, and runs the resulting \li{.byte} file to get a marshalled parse tree from standard output. We require that the parser and lexer be in their own OCamlfind package, which is the package specified in the \li{notation} syntax. This ensures that not only are the parser and lexer loaded, but all their dependencies are as well.
-
-After running the provided parser against the TLM body, we are left with a proto-expansion --- an OCaml parsetree that has unexpanded splices. The next step is a check to make sure these expressions are context independent: the proto-expansions must not refer to variables or modules accessible in the application context. We first check there are no free variables by simply running the typechecker aginst the proto-expansion, with an empty typing environment. (We do add in the dependencies which were explicitely allowed in the \li{notation} definition.) One might think this strategy would work to check modules too, but there is a global list of top-level modules that the typechecker allows, even when typing against an empty environment. So the PPX has an OCaml \li{Parsetree} and it wants to make sure that the free modules it uses (the parsetree can define its own modules internally) are restricted to the supplied dependencies. The solution we came up with is to write this \li{Parsetree} to a file, and run \li{ocamldep -modules} against the file. This gives us exactly a list of free modules, which we check against the dependencies, resulting in a completely context independent proto-expansion.
+After running the provided parser against the literal body, we are left with a \emph{proto-expansion}---an OCaml parse tree where splices are represented abstractly, i.e. they have not yet been expanded. The next step is a check to make sure the proto-expansion is context independent: it must not refer to variables, types, or modules from the application site's typing context. In principle, it should be straightforward to enforce this. For example, we could typecheck against an empty context, or directly examine the set of free variables. However, the OCaml \li{compiler-libs} package does not directly expose this functionality. We first check there are no free variables by simply running the typechecker aginst the proto-expansion, with an empty typing environment. (We do add in the dependencies which were explicitely allowed in the \li{notation} definition.) One might think this strategy would work to check modules too, but there is a global list of top-level modules that the typechecker allows, even when typing against an empty environment. So the PPX has an OCaml \li{Parsetree} and it wants to make sure that the free modules it uses (the parsetree can define its own modules internally) are restricted to the supplied dependencies. The solution we came up with is to write this \li{Parsetree} to a file, and run \li{ocamldep -modules} against the file. This gives us exactly a list of free modules, which we check against the dependencies, resulting in a completely context independent proto-expansion.
 
 It is still a proto-expansion since there are splices which the TLM parser could have potentially outputted. It is the PPX's job to parse these splices with the Reason parser and supply the resulting parse trees in a capture-avoiding way.  We have encoded the splices returned from the TLM parser as exceptions, once again. Since we're type checking 
 before this to ensure context independence, the intermediate form must pass the typechecker. An encoded splice that says characters 2 through 4 of the TLM source should be parsed as Reason and should be of type \li{string} looks like:
@@ -458,7 +457,7 @@ before this to ensure context independence, the intermediate form must pass the 
   raise (ignore (2, 4) ; Failure "RelitInternal__Spliced") : string
 \end{lstlisting}
 
-The PPX collects all the splices in a proto-expansion, parses their corresponding Reason sources to get splice parse trees. One might think that these splice parse trees could then each replace their splice in the proto-expression, but that would allow the TLM to introduce bindings into the splices --- the exact opposite of capture avoidance. Instead, we replace each encoded splice with a unique variable name, construct a lambda that takes those variable names, and immediately apply this lambda to each of the splice parse trees in order. This results in a parsetree along these lines:
+The PPX collects all the splices in a proto-expansion, parses their corresponding Reason sources to get splice parse trees. One might think that these splice parse trees could then each replace their splice in the proto-expression, but that would allow the TLM to introduce bindings into the splices---the exact opposite of capture avoidance. Instead, we replace each encoded splice with a unique variable name, construct a lambda that takes those variable names, and immediately apply this lambda to each of the splice parse trees in order. This results in a parsetree along these lines:
 
 \begin{lstlisting}
   ((fun a b c -> proto-expansion with variables instead of splices ) a b c)
@@ -471,7 +470,7 @@ The last step is to start the entire process over again. Since a spliced express
 
 \subsection{Challenges}
 \begin{enumerate}
-  \item packaging / loading parsers at compile-time is a huge hassle --- I think I've covered this.
+  \item packaging / loading parsers at compile-time is a huge hassle---I think I've covered this.
   \item jbuilder treats ppx differently
   \item ordering of ppx matters
   \item ocamldep can't see into spliced terms -- how to fix?
