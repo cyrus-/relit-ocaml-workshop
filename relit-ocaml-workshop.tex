@@ -331,9 +331,9 @@ moredelim=**[is][\color{black}]{SOK}{EOK},
 
 \section{Motivation}
 
-The Reason project (\url{https://reasonml.github.io/}) is achieving significant and growing adoption by focusing on the improving the \emph{syntactic familiarity} of OCaml, from the perspective of the broader developer community, without changing its semantics. The focus of this effort has been on the syntax of the primitive constructs of OCaml. However, another way to increase syntactic familiarity is by introducing new {literal forms} for common user-defined data structures. For example, both OCaml and Reason include literal forms for lists, e.g. \li{[e1, e2, e3]} in Reason, which lay out the list elements in the familiar sequential, punctuation-separated format. By comparison, explicitly applying constructors, e.g. \li{Nil} and \li{Cons}, is both more verbose and less familiar to humans.
+The Reason project (\url{https://reasonml.github.io/}) is experiencing growing adoption by focusing on increasing the \emph{syntactic familiarity} of OCaml (from the perspective of the broader developer community) without changing its semantics. The focus of the Reason effort so far has been on the syntax of the primitive constructs of OCaml. However, another way to increase syntactic familiarity is by introducing new {literal forms} for constructing and pattern matching on  common user-defined data structures. For example, both OCaml and Reason include literal forms for lists, e.g. \li{[e1, e2, e3]} in Reason, which lay out the list elements in the familiar sequential, punctuation-separated format. By comparison, explicitly applying constructors, e.g. \li{Nil} and \li{Cons}, is both more verbose and less familiar to human programmers.
 
-The problem is that this general design pattern is not limited to a select few data structures like lists. In fact, there are an  unbounded number of user-defined data structures that could benefit from literal notation. Although Reason does include a few more literal notations than OCaml, e.g. it supports ``JSX literals'' which are based on HTML \cite{JSX}, it would be infeasible for Reason to attempt to build in all possibly-useful literal notations \emph{a priori}. Instead, there is a need for a mechanism that allows ordinary library providers to define new literal notation for their own data structures.
+The problem is that there are an  unbounded number of other user-defined data structures that could benefit from literal notation. Although Reason does include a few more literal notations than OCaml, e.g. it supports ``JSX literals'' which are based on HTML \cite{JSX}, it would be infeasible for Reason to attempt to build in all possibly-useful literal notations \emph{a priori}. Instead, there has been a need for a reasonable mechanism that allows ordinary library providers to define new literal notation for their own data structures.
 
 For example, consider the recursive datatype \li{Regex.t}, defined in Fig.~\ref{fig:Regex-module-def}, which encodes simple regular expressions (regexes). Although this encoding is semantically useful, the induced notation is syntactically verbose and unfamiliar. For example, we would construct a regex that matches the strings \li{"A"}, \li{"T"}, \li{"G"} or \li{"C"}, which represent the four bases in DNA, as follows:
 \begin{lstlisting}[numbers=none]
@@ -341,18 +341,16 @@ For example, consider the recursive datatype \li{Regex.t}, defined in Fig.~\ref{
     let any_base = Regex.(Or(Str "A", Or(Str "T", Or(Str "G", Or(Str "C")))))
   }
 \end{lstlisting}
-and from there, we might define a regular expression that matches the DNA sequences recognized by the BisA restriction enzyme --- \li{GC}$X$\li{GC}, where $X$ is any of these four bases --- as follows:
+From there, we might define a regular expression that matches the DNA sequences recognized by the BisA restriction enzyme --- \li{GC}$X$\li{GC}, where $X$ is any of these four bases --- as follows:
 \begin{lstlisting}[numbers=none]
-  let bisA = Regex.(
-    Seq(Str "G", Seq(Str "C", 
-    Seq(DNA.any_base, 
-    Seq(Str "G", Str "C")))))
+  let bisA = Regex.(Seq(Str "G", Seq(Str "C", 
+                    Seq(DNA.any_base, Seq(Str "G", Str "C")))))
 \end{lstlisting}
 
-If we built regex literals into Reason, based on the POSIX standard regular expression notation extended with support for constructing regexes compositionally by splicing in values of type \li{Regex.t}, these examples would be substantially more concise and familiar to programmers:
+If we built regex literals into Reason, based on the POSIX standard regular expression notation extended with support for constructing regexes compositionally by splicing in expressions of type \li{Regex.t} delimited by \li{$(} and \li{)}, these examples would be substantially more concise and familiar to contemporary programmers:
 \begin{lstlisting}[numbers=none]
-  module DNA = { let any_base = `(A|T|G|C)` };
-  let bisA = `(GC$(DNA.any_base)GC)`
+  module DNA = { let any_base = `(SURLA|T|G|CEURL)` };
+  let bisA = `(SURLGC$(EURLDNA.any_baseSURL)GCEURL)`
 \end{lstlisting}
 
 However, building regex notation for this particular encoding of regexes is, we argue, rather \emph{ad hoc} --- there are dozens of other examples of notation in programming, mathematics and science that could similarly benefit \cite{cites,from,paper}. 
