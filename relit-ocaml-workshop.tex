@@ -347,17 +347,14 @@ From there, we might define a regular expression that matches the DNA sequences 
                     Seq(DNA.any_base, Seq(Str "G", Str "C")))))
 \end{lstlisting}
 
-If we built regex literals into Reason, based on the POSIX standard regular expression notation extended with support for constructing regexes compositionally by splicing in expressions of type \li{Regex.t} delimited by \li{$(} and \li{)}, these examples would be substantially more concise and familiar to contemporary programmers:
+These examples would be substantially more concise and familiar to contemporary programmers if we built regex literals into Reason, based on the POSIX standard regular expression notation extended with support for constructing regexes compositionally by splicing in expressions of type \li{Regex.t} delimited by \li{$(} and \li{)}:
 \begin{lstlisting}[numbers=none]
   module DNA = { let any_base = `(SURLA|T|G|CEURL)` };
   let bisA = `(SURLGC$(EURLDNA.any_baseSURL)GCEURL)`
 \end{lstlisting}
+\noindent
+However, building regex notation for this particular encoding of regexes is, we argue, rather \emph{ad hoc} because there are dozens of other examples of notation in programming, mathematics and science that could similarly benefit \cite{cites,from,paper}. 
 
-However, building regex notation for this particular encoding of regexes is, we argue, rather \emph{ad hoc} --- there are dozens of other examples of notation in programming, mathematics and science that could similarly benefit \cite{cites,from,paper}. 
-
-An alternative is to use a tool like \li{camlp4} or \li{ppx} to introduce this sort of literal notation modularly. There are several problems with these tools, however. Omar et al. \cite{TLMs-paper} details the problems, but to briefly summarize, these systems lack the ability to reason abstractly---without looking at the underlying expansion itself, or the parsing and expansion logic---about responsibility (which extension is uniquely responsible for each form?), typing (what type does a new form have?) and binding (where are variables bound, given that the expansion is not visible?)
-
-To address this problem, Omar et al. \cite{TLMs-paper} introduced \emph{typed literal macros (TLMs)}. An example of a TLM definition for regex notation, named \li{$regex}, is given in Fig.~\ref{fig:regex-tlm-def}. We can apply this TLM  
 
 \begin{figure}[t]
 \begin{subfigure}[t]{0.45\textwidth}
@@ -408,15 +405,19 @@ To address this problem, Omar et al. \cite{TLMs-paper} introduced \emph{typed li
 }
 \label{fig:first-tlm-example}
 \end{subfigure}
-\vspace{5px}
+\vspace{3px}
 \caption{Case Study (reproduced from \cite{TLMs-paper}): POSIX-style regex literal notation, with support for regex splicing.}
-% \vspace{-6px}
+\vspace{-4px}
 \label{fig:regex-case-study}
 \end{figure}
 
-Motivation similar to that in the ICFP paper -- but compare more explicitly to how people use ppx to rewrite string literals to support notation, camlp4, and Reason's built in HTMLish notation.
+An existing alternative is to use a tool like \li{camlp4} or \li{ppx} to introduce this sort of literal notation modularly. There are several problems with these tools, however. Omar and Aldrich \cite{TLMs-paper} detail these problems, but to briefly summarize, these systems do not give client programmers the ability to reason abstractly---without looking at the underlying expansion itself, or the parsing and expansion logic---about responsibility (which extension is uniquely responsible for each form?), typing (what type does a new form have?) and binding (where are variables bound, given that the expansion of a literal form might itself bind variables?) These issues are most salient when the programmer encounters an unfamiliar literal form. 
 
-\section{Implementation}
+To address this problem, Omar and Aldrich \cite{TLMs-paper} introduced \emph{typed literal macros (TLMs)}. An example of a TLM definition for regex notation, named \li{$regex}, is given in Fig.~\ref{fig:regex-tlm-def}. We apply this TLM to express 
+the example just given in Fig.~\ref{fig:first-tlm-example}. Each TLM is responsible for parsing the applied literal body to generate an expansion, i.e. an OCaml parse tree. The system validates each generated expansion to provide the strong abstract reasoning principles just mentioned. These reasoning principles are examined in formal detail in the paper by Omar and Aldrich \cite{TLMs-paper}, which will be presented by Cyrus at ICFP. The purpose of the proposed talk, which will be given by Charles, will be to provide a complementary ``deep dive'' that describes how we integrated this mechanism for Reason without modifying the OCaml compiler itself, by making creative use of several existing components of the OCaml system, including the \li{ppx} preprocessor system, the \li{compiler-libs} package, \li{ocamldep} and the module system. These implementation aspects are detailed only superficially in the ICFP paper.
+
+
+\section{Implementation Overview}
 
 We have modified the Reason parser to support the syntax for defining a new notation, seen in Fig.~\ref{fig:regex-tlm-def}, and the TLM quotation syntax, either \li{`(body)`} or \li{Path.To.$regex `(body)`}.
 
