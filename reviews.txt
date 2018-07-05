@@ -1,0 +1,253 @@
+OCaml 2018 Paper #15 Reviews and Comments
+===========================================================================
+Paper #15 Relit: Implementing Typed Literal Macros in Reason
+
+
+Review #15A
+===========================================================================
+
+Overall merit
+-------------
+4. Accept
+
+Reviewer expertise
+------------------
+2. Some familiarity
+
+Paper summary
+-------------
+The authors present the Reason implementation of *typed literal macros* (TLMs) by way of an example (regexp literals).
+
+Comments for author
+-------------------
+I think this will make an interesting talk!
+
+The subject is interesting in its own right, and I think the encoding and techniques used (via ppx, compiler-libs, module system, ocamlfind & ocamldep) have wide applicability and will be of interest to people working on a wide range of problems.
+
+
+
+Review #15B
+===========================================================================
+
+Overall merit
+-------------
+3. Weak accept
+
+Reviewer expertise
+------------------
+3. Knowledgeable
+
+Paper summary
+-------------
+The authors report on the technical implementation of type-directed
+macros for ReasonML, (ab)using the existing preprocessing machinery
+supported by Reason/OCaml compilers that was not meant for type-aware
+syntactic preprocessing. They use a multi-phase design where they
+first generate wrong code (they don't have type information yet),
+type-check that, and use the typing information to guide a second
+code-translation process. They also use this control over the typing
+phase of their extensions to help ensure hygiene, by ensuring that the
+AST fragments they generate are closed (in particular, no dependence
+on the local context), except for designated unquoted fragments.
+
+Comments for author
+-------------------
+I have mixed feelings about the submission. It is the "implementation
+presentation" counterpart of an ICFP paper, but the implementation is
+not particularly nice, it is more a pile of workaround for existing
+tooling limitations. This experience report can be of use to other
+programmers with similar needs ("writing ppx extensions that take
+advantage of type information"), but there is also a lost opportunity
+to discuss whether there would be *better* ways to do it.
+
+For example, with the technology at hand, I think it could have been
+interesting to experiment with an alternative compiler frontend
+(integrating it in a normal build system by using the "-pp" option,
+which goes from source to AST) that provides a properly designed
+AST-transformations-with-type-information phase. We could then discuss
+whether this is a desirable addition to the current compiler, for
+example. One way to do it is to add a "did not type-check properly"
+case in the typedtree representation, that gets used in the first pass
+gathering type information before the user code is expanded, and
+I suspect that some other people like the Merlin authors could also be
+interested in this addition and have interesting feedback to provide.
+
+Going back to looking at how the submission is instead of how it
+should have been: I think it is reasonably well written, but still not
+a clear explanation of a somewhat complex process. Some of the prose
+could have been replaced by a diagram of transformation steps,
+possibly with a running program example alongside it. I personally
+started feeling a bit confused at the "we are left with
+a proto-expansion" step, and an actual example of a proto-expansion
+would have helped. (On the other hand, I'm not convinced by the strong
+importance of showing the module code generated to encode a key-value
+string structure into a module signature so that the normal
+type-checker will propagate the information in the right place. It's
+a cute trick and you sohuld definitely talk about it in
+a presentation, but maybe not a central point?)
+
+All in all, I weakly recommend accepting this presentation. Minor
+comments are listed below.
+
+.
+
+camlp4 and ppx-based string rewriting: it is not correct to talk of
+"string rewriting" for these preprocessors that manipulate abstract
+syntax trees ("string rewriting" is what you would call `sed`). "AST
+rewriting" would be a fairer characterization.
+
+.
+
+There is a weird blind spot in the description: you never explain how you
+fetch the type information after type-checking. In a paragraph you
+write "we must be able to typecheck before expanding literal bodies",
+and in the next paragraph you start with "Once the Relit PPX has all
+the information ... that it needs". What happened in the middle? Did
+you call the type-checker on the command-line and inspect the
+generated pretty-printed typedtree? Did you call the type-checker for
+Compiler-libs and inspect the generated typedtree?
+
+It would be nice to know because this can influence the rest of the
+design. For example, the second option I considered (generally seems
+more sensible and) in particular gives you more freedom on the
+expansion (if you call the type-checker programmatically, you could
+put a term variable whose type is an inference variable in the
+expansion, instead of a 'raise', and get the inferred type directly
+from that).
+
+.
+
+> The lexer and parser must be generated by, or have the same interface
+> as the modules generated by, ocamllex and Menhir, respectively.
+
+Is there a reason to not let users write an arbitrary string-taking
+functions, and force them to split their reader into a lexer and
+a parser? (I would guess yes; then you could mention it in the
+abstract.)
+
+.
+
+> However, the OCaml compiler-libs package does not directly support
+> this functionality because adding the dependencies to the empty
+> typing context exposes the global modules of all packages that the
+> dependencies transitively depend on.
+
+There is no way to avoid that, at least for the dependencies that show
+up in the type signature: otherwise the type context would be
+ill-formed.
+
+(There is support in the compiler for adding callbacks on paths in the
+environment that are activated on use-sites; This is used to implement
+"unused name .." warnings, and possibly for deprecation warnings as
+well. Maybe you could use this to ensure that transitive dependencies
+are not relied on by the source program.)
+
+Why is it that you want to ensure that the generated literal do not
+use transitive dependencies? It is unclear to me what the risk is.
+
+.
+
+> Then, we write the parse tree to a temporary file, and run
+> ocamldep -modules against the file.
+
+First, you could probably call the AST dependency finder directly
+through compiler-libs (it may depend on which OCaml version you
+are using). Second, (ocamldep) only returns a syntactic approximation
+that is wrong in presence of `open` and submodules -- in theory it is
+only pessimistic, there are only false dependencies and no missing
+dependencies. You can do a perfect dependency-checking by using the
+typedtree, looking at the full paths of names in the AST, and you
+precisely have a typedtree at hand.
+
+.
+
+> Internally, an encoded splice that says characters 2 through 8 of
+> the literal body should be parsed as an unexpanded expression of
+> type string looks like this:
+>
+> ```
+> raise ( ignore (2 , 8) ; Failure " RelitInternal__Spliced " ) : string
+> ```
+
+How did you get the `string` type information here? Why does it
+matter? I suppose that is not the type of the splice itself
+(in general the splice's type may refer to the local
+typing environment), but rather the type inferred for the context of
+the splice in some previous typechecking of the without-splices
+expansion? Do we actually need this type here?
+
+
+> ```
+> ((fun a b c -> (* ... proto - expansion with variables instead of splices ... *))
+>  splice1 splice2 splice3 )
+> ```
+
+This is equivalent to the more direct
+
+```
+let a = splice1
+and b = splide2
+and c = splice3
+in (* proto expansion *)
+```
+
+but note that this restricts the expansion strategy, as it guarantees
+that splices will always be evaluated strictly before the literal
+value is returned. What if the literal was something like
+
+```
+$just_ocaml_syntax `fun () -> $(print_endline "foo")`
+```
+
+? I guess it is a possible design choice to make this assumption, but
+note that you could also keep the effects performed at the splice
+position (which would allow the expander to delay them), and control
+whether you use a call-by-name or call-by-need evaluation strategy,
+with the following:
+
+```
+let a () = splice1
+and b () = splide2
+and c () = splice3
+in (* proto expansion, using (a ()) for (a) *)
+```
+
+(using `lazy` instead of `fun () -> ...` for effect sharing.)
+
+.
+
+> Although Menhir has basic support for TLMs
+
+I guess you mean "Merlin" -- but note that Merlin is not responsible
+for syntax highlighting in your editor, that would be a separate
+syntax-highlighting component.
+
+
+
+Review #15C
+===========================================================================
+
+Overall merit
+-------------
+5. Strong accept
+
+Reviewer expertise
+------------------
+4. Expert
+
+Paper summary
+-------------
+As a companion paper to work being presented at ICFP this year, this presentation describes the addition of "typed literal macros" to Reason (an alternative syntax for OCaml), which allow the syntax to be extended new kinds of literal syntax for arbitrary user-defined data structures, such as regular expressions or HTML. Compared to the ICFP paper, this presentation focuses on the integration with the OCaml ecosystem, covering details of the ppx rewriter implementation and build system difficulties.
+
+Comments for author
+-------------------
+I think this will make a great presentation, adding a feature of wide applicability to the language. The details of the implementation, and particularly the focus on integration with the OCaml toolchain will be of interest. I think that an OCaml workshop presentation on this topic would also be a good venue to discuss possible changes to ocamldep, jbuilder, etc. to make the implementation more direct.
+
+
+
+Comment @A1 by Reviewer B
+---------------------------------------------------------------------------
+I was just reminded of Jun Furuse's [typpx](https://bitbucket.org/camlspotter/typpx) framework, that does the heavy lifting to let people write type-directed syntactic transformations in more convenient ways. I haven't looked deeply enough to be sure that it is flexible enough for the authors use-case (at least, it lets you specify ast-replacement strategies for the first typing phase), but it may very well be, and it could prove useful to them anyway.
+
+  TyPPX: Library for PPX with Types  
+  https://bitbucket.org/camlspotter/typpx
