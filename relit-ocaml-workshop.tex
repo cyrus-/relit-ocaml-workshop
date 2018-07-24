@@ -460,7 +460,7 @@ The PPX collects all the splices in a proto-expansion, checks that the segments 
   ((fun a b -> (* ... proto-expansion with a(), b() standing for splices ... *)) 
     (fun () -> splice1) (fun () -> splice2))
 \end{lstlisting}
-We replace each encoded splice with a fresh variable applied to the unit value, construct a lambda that abstracts over those variables, and immediately apply this lambda to the corresponding spliced expressions, themselves ``thunked'' under lambdas to maintain the ordering of side effects. 
+We replace each encoded splice with a fresh variable applied to the unit value, construct a lambda that abstracts over those variables, and immediately apply this lambda to the corresponding spliced expressions, themselves ``thunked'' Kunder lambdas to maintain the ordering of side effects. 
 
 The last step is to repeat the entire process, recursively expanding any TLM applications exposed by this first phase of expansion until there are no TLM applications remaining.
 
