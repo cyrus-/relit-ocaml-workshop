@@ -436,7 +436,7 @@ The \li{$regex} TLM definition in Fig.~\ref{fig:regex-tlm-def} desugars to the f
 
 The name of the TLM is stored as the module name, with the internal prefix \li{RelitInternalDefn_}. By encoding TLM definitions as modules, TLMs can be packaged inside other modules (\li{RegexNotation} in Fig.~\ref{fig:regex-tlm-def}) and it is straightforward to support scoped TLM abbreviations, as on Line 1 of Fig.~\ref{fig:first-tlm-example}. By encoding the relevant information from the TLM definition in module names, e.g. \li{Lexer_RegexLexer} and \li{Nonterminal_start}, we ensure that the corresponding signature is a \emph{singleton signature}, i.e. it uniquely identifies the TLM definition, so TLM definitions can be included in module signatures, exported from functors and packaged using the standard tooling.
 
-A TLM application is parsed as into a syntax tree equivalent to:
+A TLM application is parsed into a syntax tree equivalent to:
 \begin{lstlisting}[numbers=none]
   raise (RelitInternalDefn_regex.Apply
           ("You're using relit syntax without the relit ppx!", "A|T|G|C") [@relit])
@@ -455,11 +455,12 @@ We can then consider splices. Internally, an encoded splice that says characters
 \end{lstlisting}
 Notice again that we used an exception to ensure that the typechecker can run as described. 
 
-The PPX collects all the splices in a proto-expansion, checks that the segments are non-overlapping, and parses the corresponding subsequence of the literal body using our extended Reason parser. One might think that these resulting splice parse trees could then replace the splice reference in the proto-expression, but that would allow the TLM to introduce bindings into the splices. Instead, we want to maintain a capture avoidance property, so we replace each encoded splice with a fresh variable, construct a lambda that abstracts over those variables, and immediately apply this lambda to the corresponding splice parse trees. The resulting expansion is of the following form:
+The PPX collects all the splices in a proto-expansion, checks that the segments are non-overlapping, and parses the corresponding subsequence of the literal body using our extended Reason parser. One might think that these resulting splice parse trees could then replace the splice reference in the proto-expression, but that would allow spliced expressions to capture TLM-local bindings. In order to avoid capture, the generated expansion is of the following form:
 \begin{lstlisting}
-  ((fun a b -> (* ... proto-expansion with variables instead of splices ... *)) 
+  ((fun a b -> (* ... proto-expansion with a(), b() standing for splices ... *)) 
     (fun () -> splice1) (fun () -> splice2))
 \end{lstlisting}
+We replace each encoded splice with a fresh variable applied to the unit value, construct a lambda that abstracts over those variables, and immediately apply this lambda to the corresponding spliced expressions, themselves ``thunked'' under lambdas to maintain the ordering of side effects. 
 
 The last step is to repeat the entire process, recursively expanding any TLM applications exposed by this first phase of expansion until there are no TLM applications remaining.
 
